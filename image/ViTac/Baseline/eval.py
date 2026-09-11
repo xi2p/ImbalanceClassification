@@ -213,7 +213,7 @@ def main():
 
     # ---------- 1. 读取 checkpoint，确定 num_classes ----------
     assert os.path.isfile(args.ckpt), f'找不到 checkpoint: {args.ckpt}'
-    ckpt = torch.load(args.ckpt, map_location=device)
+    ckpt = torch.load(args.ckpt, map_location=device, weights_only=False)
 
     num_classes = args.num_classes
     if num_classes is None:
