@@ -26,7 +26,7 @@ def parse_args():
                              '0.5=温和平衡(1/sqrt(n))；0.0=等价于普通随机采样')
     # 训练参数
     parser.add_argument('--batch_size', type=int, default=32)
-    parser.add_argument('--epochs', type=int, default=100)
+    parser.add_argument('--epochs', type=int, default=20)
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--weight_decay', type=float, default=1e-4)
     parser.add_argument('--seed', type=int, default=42)
