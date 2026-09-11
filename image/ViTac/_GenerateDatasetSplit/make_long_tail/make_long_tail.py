@@ -12,10 +12,11 @@ ALL_ITEM = "__all_item.txt"
 OUT_DIR = "."
 
 SEED = 42
-C_EXPECTED = 100
+NUM_CLASSES = 30        # 所保留的类别数量。例如30-> 保留0~29类
+C_EXPECTED = NUM_CLASSES
 
 # 长尾不平衡因子：训练集最大类样本数 / 最小类样本数
-IM = 25
+IM = 50
 
 # 先按 seq 做 7:2:1 划分
 TRAIN_RATIO = 0.7
@@ -54,7 +55,13 @@ records = []
 with open(os.path.join(OUT_DIR, ALL_ITEM), "r", encoding="utf-8") as f:
     for line in f:
         parsed = parse_line(line)
-        if parsed is not None:
+        if parsed is None:
+            continue
+
+        _, cid, _ = parsed
+
+        # 只保留前 NUM_CLASSES 类：0, 1, ..., NUM_CLASSES-1
+        if 0 <= cid < NUM_CLASSES:
             records.append(parsed)
 
 print(f"读取样本数: {len(records)}")
