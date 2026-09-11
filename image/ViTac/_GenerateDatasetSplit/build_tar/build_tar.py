@@ -3,8 +3,8 @@ import tarfile
 
 # ==================== 配置 ====================
 DATASET_ROOT = r"E:\PythonProjects\SlipDetection\ViTac\vitac_dataset"
-TXT_FILES = ["../../train.txt", "../../val.txt", "../../test.txt"]
-OUTPUT_TAR = "vitac-LT.tar"
+TXT_FILES = ["../../_Splits/C30-IM50/train.txt", "../../_Splits/C30-IM50/val.txt", "../../_Splits/C30-IM50/test.txt"]
+OUTPUT_TAR = "vitac-LT-C30-IM50.tar"
 # ==============================================
 
 def main():
