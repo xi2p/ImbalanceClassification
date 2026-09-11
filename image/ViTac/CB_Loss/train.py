@@ -162,7 +162,7 @@ def main():
     logger.info(f'Train: {len(train_set)}, Val: {len(val_set)}')
 
     # 模型
-    model = ResNet50().to(device)
+    model = ResNet50(num_classes=args.num_classes).to(device)
 
     # 用训练集标签分布计算 CB 权重
     counts = np.bincount(train_set.labels, minlength=args.num_classes)

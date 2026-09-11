@@ -211,7 +211,7 @@ def main():
     logger.info(f'Train: {len(train_set)}, Val: {len(val_set)}')
 
     # 模型
-    model = ResNet50().to(device)
+    model = ResNet50(num_classes=args.num_classes).to(device)
 
     criterion = nn.CrossEntropyLoss()
 
