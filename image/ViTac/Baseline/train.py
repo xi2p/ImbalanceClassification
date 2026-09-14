@@ -142,8 +142,8 @@ def main():
     logger.info(f'Device: {device}')
 
     # 数据集
-    train_set = ViTacDataset(args.data_root, '../_Splits/C30-IM50', split='train')
-    val_set = ViTacDataset(args.data_root, '../_Splits/C30-IM50', split='val')
+    train_set = ViTacDataset(args.data_root, '../_Splits/C30-IM50-SEQ', split='train')
+    val_set = ViTacDataset(args.data_root, '../_Splits/C30-IM50-SEQ', split='val')
 
     train_loader = DataLoader(
         train_set, batch_size=args.batch_size, shuffle=True,
