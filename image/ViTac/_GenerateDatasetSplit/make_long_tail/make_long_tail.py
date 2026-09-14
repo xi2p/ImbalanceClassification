@@ -12,11 +12,14 @@ ALL_ITEM = "__all_item.txt"
 OUT_DIR = "."
 
 SEED = 42
-NUM_CLASSES = 30        # 所保留的类别数量。例如30-> 保留0~29类
+NUM_CLASSES = 30        # 所保留的类别数量。例如30 -> 保留0~29类
 C_EXPECTED = NUM_CLASSES
 
-# 长尾不平衡因子：训练集最大类样本数 / 最小类样本数
+# 长尾不平衡因子：训练集最大类保留 seq 数 / 最小类保留 seq 数
 IM = 50
+
+# 每个保留的 seq 中随机保留的样本数
+M = 10
 
 # 先按 seq 做 7:2:1 划分
 TRAIN_RATIO = 0.7
@@ -114,6 +117,7 @@ for cid in all_classes:
             val_n = 1
         if test_n < 1:
             test_n = 1
+
     # 重新调整，保证总数不超过 N
     while train_n + val_n + test_n > N:
         if train_n > 1:
@@ -125,7 +129,6 @@ for cid in all_classes:
         else:
             break
 
-    # 如果还是超过，从 train 借
     if train_n + val_n + test_n > N:
         train_n = N - val_n - test_n
         if train_n < 0:
@@ -148,33 +151,28 @@ for cid in all_classes:
 
 print(f"划分完成：train seq={len(train_seq_keys)}, val seq={len(val_seq_keys)}, test seq={len(test_seq_keys)}")
 
-# ==================== 第二步：训练集样本粒度长尾改造 ====================
-# 先统计每个类在训练集中可用的样本
-class_train_available_samples = {}
-for cid in all_classes:
-    samples = []
-    for seq in class_train_seqs[cid]:
-        samples.extend(class_to_seq[cid][seq])
-    class_train_available_samples[cid] = samples
+# ==================== 第二步：训练集 seq 层面长尾改造 ====================
+# 统计每个类训练集可用 seq 数
+avail_seq_counts = {cid: len(class_train_seqs[cid]) for cid in all_classes}
+min_avail_seq = min(avail_seq_counts.values())
+max_avail_seq = max(avail_seq_counts.values())
 
-avail_counts = [len(class_train_available_samples[cid]) for cid in all_classes]
-min_avail = min(avail_counts)
-max_avail = max(avail_counts)
+print(f"训练集每类可用 seq 数：min={min_avail_seq}, max={max_avail_seq}")
 
-print(f"训练集每类可用样本数：min={min_avail}, max={max_avail}")
-
-# 自动确定 N_MAX / N_MIN，使 N_MAX / N_MIN = IM，且不超过最小可用类样本数
-N_MIN = max(1, min_avail // IM)
+# 自动确定 N_MAX / N_MIN，使 N_MAX / N_MIN ≈ IM
+# 这里 N_MAX / N_MIN 是训练集最大类保留 seq 数 / 最小类保留 seq 数
+N_MIN = max(1, min_avail_seq // IM)
 N_MAX = N_MIN * IM
-if N_MAX > min_avail:
-    N_MAX = min_avail
+
+if N_MAX > min_avail_seq:
+    N_MAX = min_avail_seq
     N_MIN = max(1, N_MAX // IM)
     N_MAX = N_MIN * IM
 
-print(f"长尾目标：N_MAX={N_MAX}, N_MIN={N_MIN}, IM≈{N_MAX / max(1, N_MIN):.2f}")
+print(f"长尾目标（seq 粒度）：N_MAX={N_MAX}, N_MIN={N_MIN}, IM≈{N_MAX / max(1, N_MIN):.2f}")
 
-# 按随机类别顺序做指数衰减，得到每个类的目标样本数
-class_target_samples = {}
+# 按随机类别顺序做指数衰减，得到每个类的目标保留 seq 数
+class_target_seqs = {}
 for cid in all_classes:
     rank = class_rank[cid]
     if C > 1:
@@ -182,33 +180,42 @@ for cid in all_classes:
     else:
         target = N_MAX
     target = max(1, int(target))
-    # 不超过可用样本数
-    target = min(target, len(class_train_available_samples[cid]))
-    class_target_samples[cid] = target
+    # 不超过可用 seq 数
+    target = min(target, len(class_train_seqs[cid]))
+    class_target_seqs[cid] = target
 
-# 对每个类随机抽取目标数量的样本
+# 在 seq 层面选择，并在每个选中的 seq 中随机保留 M 个样本
+train_selected_seqs = set()
 train_selected_lines = set()
-train_actual_samples = {}
 train_actual_seqs = defaultdict(set)
+train_actual_samples = {}
 
 for cid in all_classes:
-    available = class_train_available_samples[cid]
-    target = class_target_samples[cid]
-    if target >= len(available):
-        selected = available[:]
+    available_seqs = class_train_seqs[cid]
+    target = class_target_seqs[cid]
+
+    if target >= len(available_seqs):
+        selected_seqs = available_seqs[:]
     else:
-        selected = rng.sample(available, target)
+        selected_seqs = rng.sample(available_seqs, target)
 
-    for line in selected:
-        train_selected_lines.add(line)
-        # 记录该样本所属 seq，便于统计 seq 数
-        # 通过 records 反查太慢，这里直接利用 class_to_seq 结构
-    train_actual_samples[cid] = len(selected)
+    sample_count = 0
+    for seq in selected_seqs:
+        train_selected_seqs.add(seq)
+        samples = class_to_seq[cid][seq]
 
-    # 统计实际选中的 seq 数
-    for seq, lines in class_to_seq[cid].items():
-        if any(l in train_selected_lines for l in lines):
-            train_actual_seqs[cid].add(seq)
+        if len(samples) <= M:
+            selected_samples = samples[:]
+        else:
+            selected_samples = rng.sample(samples, M)
+
+        for line in selected_samples:
+            train_selected_lines.add(line)
+
+        sample_count += len(selected_samples)
+        train_actual_seqs[cid].add(seq)
+
+    train_actual_samples[cid] = sample_count
 
 # ==================== 第三步：写出 train / val / test ====================
 def write_split(filename, selected_lines=None, selected_seqs=None):
@@ -248,14 +255,14 @@ for cid in all_classes:
     rows.append({
         "class_id": cid,
         "class_rank": class_rank[cid],
-        "train_available_samples": len(class_train_available_samples[cid]),
-        "train_target_samples": class_target_samples[cid],
-        "train_actual_samples": train_stats[cid]["samples"],
+        "train_available_seqs": len(class_train_seqs[cid]),
+        "train_target_seqs": class_target_seqs[cid],
         "train_actual_seqs": len(train_stats[cid]["seqs"]),
-        "val_samples": val_stats[cid]["samples"],
+        "train_actual_samples": train_stats[cid]["samples"],
         "val_seqs": len(val_stats[cid]["seqs"]),
-        "test_samples": test_stats[cid]["samples"],
+        "val_samples": val_stats[cid]["samples"],
         "test_seqs": len(test_stats[cid]["seqs"]),
+        "test_samples": test_stats[cid]["samples"],
     })
 
 df = pd.DataFrame(rows)
@@ -269,10 +276,10 @@ df_train = df[
     [
         "class_id",
         "class_rank",
-        "train_available_samples",
-        "train_target_samples",
-        "train_actual_samples",
+        "train_available_seqs",
+        "train_target_seqs",
         "train_actual_seqs",
+        "train_actual_samples",
     ]
 ].sort_values("train_actual_samples", ascending=False).reset_index(drop=True)
 
@@ -293,14 +300,21 @@ pd.DataFrame({
 )
 
 # ==================== 第五步：绘图 ====================
-# 训练集长尾分布：样本粒度
+# 训练集长尾分布：seq 粒度 + 样本粒度
 df_plot = df.sort_values("train_actual_samples", ascending=False).reset_index(drop=True)
 
-plt.figure(figsize=(16, 6))
-plt.bar(df_plot.index, df_plot["train_actual_samples"], color="steelblue")
-plt.xlabel("Class (sorted by train samples)")
-plt.ylabel("Number of samples")
-plt.title("Training Set Long-tailed Distribution (Sample-level)")
+fig, axes = plt.subplots(2, 1, figsize=(16, 10))
+
+axes[0].bar(df_plot.index, df_plot["train_actual_seqs"], color="darkorange")
+axes[0].set_xlabel("Class (sorted by train samples)")
+axes[0].set_ylabel("Number of sequences")
+axes[0].set_title("Training Set Long-tailed Distribution (Seq-level)")
+
+axes[1].bar(df_plot.index, df_plot["train_actual_samples"], color="steelblue")
+axes[1].set_xlabel("Class (sorted by train samples)")
+axes[1].set_ylabel("Number of samples")
+axes[1].set_title("Training Set Long-tailed Distribution (Sample-level)")
+
 plt.tight_layout()
 plt.savefig(os.path.join(OUT_DIR, "train_longtail_distribution.png"), dpi=300)
 plt.close()
