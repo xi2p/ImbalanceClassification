@@ -150,7 +150,10 @@ def main():
         transforms.RandomRotation(degrees=(0, 360)),         # 随机旋转 0~360°
         transforms.CenterCrop(720),                          # 旋转后中心裁剪 509x509
         transforms.Resize((224, 224)),                       # 缩放到 224x224
-        transforms.ToTensor()
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                             std=[0.229, 0.224, 0.225])
+
     ])
     train_set = ViTacDataset(args.data_root, args.txt_dir, split='train', transform=augment_transform)
     val_set = ViTacDataset(args.data_root, args.txt_dir, split='val')
