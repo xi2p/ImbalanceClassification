@@ -18,6 +18,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Image Classification Training')
     # 数据参数
     parser.add_argument('--data_root', type=str, required=True)
+    parser.add_argument('--txt_dir', type=str, required=True,
+                        help='train.txt / val.txt / test.txt 所在目录')
     parser.add_argument('--num_classes', type=int, default=100, help='类别数')
     parser.add_argument('--num_workers', type=int, default=6, help='数据加载器的 worker 数量')
     # 训练参数
@@ -142,8 +144,8 @@ def main():
     logger.info(f'Device: {device}')
 
     # 数据集
-    train_set = ViTacDataset(args.data_root, '../_Splits/C30-IM50-SEQ', split='train')
-    val_set = ViTacDataset(args.data_root, '../_Splits/C30-IM50-SEQ', split='val')
+    train_set = ViTacDataset(args.data_root, args.txt_dir, split='train')
+    val_set = ViTacDataset(args.data_root, args.txt_dir, split='val')
 
     train_loader = DataLoader(
         train_set, batch_size=args.batch_size, shuffle=True,
